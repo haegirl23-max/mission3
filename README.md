@@ -45,7 +45,11 @@ AI 전용 칩(NPU)이 수천 개의 MAC 연산을 동시에 처리하는 원리�
 ## 실행 방법
 
 ```bash
-cd ~/codyssey/mission3
+# 1. 저장소 복제
+git clone https://github.com/haegirl23-max/mission3.git
+cd mission3
+
+# 2. 실행 (Python 3.8 이상)
 python3 main.py
 ```
 
