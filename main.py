@@ -36,6 +36,7 @@ def judge(score_a, score_b, label_a="A", label_b="B"):
 
 def measure_ms(pattern, filt):
     """ 성능 측정을 위한 함수"""
+    # 측정 범위: start~end 사이에는 mac() 호출만 있다 (입력·출력·파일 읽기는 포함하지 않음)
     start = time.perf_counter()
     for _ in range(REPEAT):
         mac(pattern, filt)
@@ -61,12 +62,12 @@ def read_matrix(title, n=3):
         line = input()
         parts = line.split()
         if len(parts) != n:
-            print(f"입력 형식 오류: 각 줄에 {n}개의 숫자를 입력해야 합니다.")
+            print(f"입력 형식 오류: 각 줄에 {n}개의 숫자를 공백으로 구분해 입력하세요. (예: 0 1 0)")
             continue
         try:
             row = [float(p) for p in parts]
         except ValueError:
-            print(f"입력 형식 오류: '{line}'는 숫자가 아닙니다. 다시 시도하세요.")
+            print(f"입력 형식 오류: '{line}'에 숫자가 아닌 값이 있습니다. 숫자만 입력하세요. (예: 0 1 0)")
             continue
         matrix.append(row)
     return matrix
@@ -110,6 +111,8 @@ def print_title(text):
 def print_performance(sizes):
     """ 성능 측정 결과를 출력하는 함수"""
     print_title("성능 분석 (평균/10회)")
+    # 열 너비: 데이터 줄은 8칸·16칸. 한글은 터미널에서 2칸을 차지하므로
+    # 제목 줄은 한글 글자 수만큼 줄여 6칸·12칸으로 맞춘다. 열을 바꿀 때는 두 줄을 함께 고칠 것.
     print(f"{'크기':<6}{'평균 시간(ms)':<12}{'연산 횟수'}")
     print("-" * 40)
     for n in sizes:
@@ -141,7 +144,8 @@ def run_user_mode():
     result = judge(score_a, score_b, "A", "B")
 
     if result == "UNDECIDED":
-        print(f"판정: 판정 불가 (|A-B| < {EPSILON})")
+        diff = abs(score_a - score_b)
+        print(f"판정: 판정 불가 (|A-B| = {diff:.1e} < {EPSILON})")
 
     else:
         print(f"판정: {result}")
@@ -165,8 +169,14 @@ def load_filters(data):
             label = normalize_label(raw_label)
             if label is not None:
                 normalized[label] = matrix
+            else:
+                print(f"  ! {key}: 알 수 없는 필터 이름 '{raw_label}' (건너뜀)")
         filters[n] = normalized
-        print(f"✓ {key} 필터 로드 완료 ({', '.join(normalized.keys())})")
+        missing = [label for label in ("Cross", "X") if label not in normalized]
+        if missing:
+            print(f"✗ {key} 필터 일부 누락: {', '.join(missing)} 없음 (로드됨: {', '.join(normalized.keys()) or '없음'})")
+        else:
+            print(f"✓ {key} 필터 로드 완료 ({', '.join(normalized.keys())})")
 
     print()
     return filters
@@ -192,9 +202,15 @@ def analyze_pattern(key, item, filters):
      # (2) 필요한 데이터가 다 있는지
 
     if n not in filters:
-        return fail(f"size_{n} 필터가 없음")
-    if "Cross" not in filters[n] or "X" not in filters[n]:
-        return fail(f"size_{n} 필터에 Cross/X 중 하나가 없음")
+        loaded = ", ".join(f"size_{k}" for k in sorted(filters)) or "없음"
+        hint = ""
+        if filters:
+            nearest = min(filters, key=lambda k: abs(k - n))   # 크기 차이가 가장 작은 필터
+            hint = f", 가장 가까운 크기: size_{nearest}"
+        return fail(f"size_{n} 필터가 없음 (로드된 필터: {loaded}{hint})")
+    missing = [label for label in ("Cross", "X") if label not in filters[n]]
+    if missing:
+        return fail(f"size_{n} 필터에 {', '.join(missing)} 필터가 없음")
     if not isinstance(item, dict) or "input" not in item or "expected"  not in item:
         return fail("input 또는 expected 항목이 없음")
 
@@ -233,7 +249,8 @@ def analyze_pattern(key, item, filters):
     if passed:
         return True, ""
     if result == "UNDECIDED":
-        return fail("동점(UNDECIDED) 처리 규칙에 따라 FAIL")
+        diff = abs(cross_score - x_score)
+        return fail(f"동점(UNDECIDED) 처리 규칙에 따라 FAIL (|Cross-X| = {diff:.1e})")
     return fail(f"판정({result})과 expected({expected})가 다름")
 
 
